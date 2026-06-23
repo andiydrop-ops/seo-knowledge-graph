@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="uk" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5">
+<meta name="description" content="Інтерактивний граф знань SEO — побудований зі звʼязків Obsidian-сховища. Кластери, пошук, фокус на вузлі, фільтри тем.">
+<meta name="color-scheme" content="dark light">
+<title>Граф знань — SEO</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='12' fill='%23ff6b6b'/%3E%3Ccircle cx='20' cy='22' r='7' fill='%2338bdf8'/%3E%3Ccircle cx='82' cy='30' r='7' fill='%23a78bfa'/%3E%3Ccircle cx='25' cy='80' r='7' fill='%2334d399'/%3E%3Ccircle cx='80' cy='78' r='7' fill='%23fbbf24'/%3E%3Cg stroke='%23556' stroke-width='3'%3E%3Cline x1='50' y1='50' x2='20' y2='22'/%3E%3Cline x1='50' y1='50' x2='82' y2='30'/%3E%3Cline x1='50' y1='50' x2='25' y2='80'/%3E%3Cline x1='50' y1='50' x2='80' y2='78'/%3E%3C/g%3E%3C/svg%3E">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+  :root{
+    --bg:#0c0e14; --bg2:#11141d; --glow-bg:#171b27;
+    --panel:rgba(20,24,34,.72); --panel-solid:#141824; --chip:#1a1f2c; --chip-hover:#222838;
+    --line:#272d3b; --line-soft:#1d2330;
+    --text:#e8ebf2; --muted:#8b93a7; --muted2:#5e6679;
+    --edge:#37404f; --accent:#7c5cff; --accent2:#4dd2ff;
+    --core:#ff6b6b; --technical:#38bdf8; --content:#34d399; --domains:#fbbf24; --links:#a78bfa;
+    --shadow:0 16px 48px rgba(0,0,0,.5); --shadow-sm:0 6px 18px rgba(0,0,0,.35);
+  }
+  [data-theme="light"]{
+    --bg:#eef1f7; --bg2:#f6f8fc; --glow-bg:#ffffff;
+    --panel:rgba(255,255,255,.82); --panel-solid:#ffffff; --chip:#eef1f7; --chip-hover:#e3e8f2;
+    --line:#dce1ec; --line-soft:#e7ebf3;
+    --text:#1b2230; --muted:#5b6478; --muted2:#9aa3b6;
+    --edge:#c3ccdb; --accent:#6d4dff; --accent2:#0ea5e9;
+    --core:#ef4444; --technical:#0284c7; --content:#059669; --domains:#d97706; --links:#7c3aed;
+    --shadow:0 16px 40px rgba(20,30,60,.14); --shadow-sm:0 6px 16px rgba(20,30,60,.1);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  #app{display:flex;height:100vh;height:100dvh;overflow:hidden}
+
+  /* ---------- sidebar ---------- */
+  #side{width:300px;flex:0 0 300px;background:var(--panel);backdrop-filter:blur(14px);
+    -webkit-backdrop-filter:blur(14px);border-right:1px solid var(--line);
+    padding:18px 18px 14px;display:flex;flex-direction:column;gap:14px;overflow-y:auto;z-index:20}
+  #side::-webkit-scrollbar{width:8px}
+  #side::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+  .brand{display:flex;align-items:center;gap:9px}
+  .brand h1{font-size:16px;margin:0;font-weight:650;letter-spacing:-.2px}
+  .badge{font-size:10px;font-weight:600;color:var(--accent2);border:1px solid var(--line);
+    padding:2px 7px;border-radius:20px;background:var(--chip)}
+  .sub{font-size:12px;color:var(--muted);line-height:1.55;margin:-4px 0 2px}
+  .sub code{background:var(--chip);padding:1px 5px;border-radius:5px;font-size:11px}
+
+  .field{position:relative}
+  .field svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);
+    width:14px;height:14px;stroke:var(--muted2);pointer-events:none}
+  input[type=text]{width:100%;padding:10px 30px 10px 33px;background:var(--bg);
+    border:1px solid var(--line);border-radius:9px;color:var(--text);font-size:13px;outline:none;
+    transition:border-color .15s,box-shadow .15s}
+  input[type=text]:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .clear-x{position:absolute;right:8px;top:50%;transform:translateY(-50%);width:18px;height:18px;
+    border:none;background:var(--chip);color:var(--muted);border-radius:50%;cursor:pointer;
+    display:none;align-items:center;justify-content:center;font-size:12px;line-height:1;padding:0}
+  .field.has-val .clear-x{display:flex}
+  .search-hint{font-size:11px;color:var(--muted2);min-height:14px;margin-top:6px}
+  .search-hint b{color:var(--accent2);font-weight:600}
+
+  .ctrls{display:flex;gap:8px;flex-wrap:wrap}
+  button{background:var(--bg);border:1px solid var(--line);color:var(--text);padding:8px 11px;
+    border-radius:9px;font-size:12px;cursor:pointer;transition:border-color .15s,background .15s;
+    display:inline-flex;align-items:center;gap:6px;font-family:inherit}
+  button:hover{border-color:var(--accent);background:var(--chip)}
+  button.primary{flex:1;justify-content:center}
+
+  .sec-title{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted2);
+    font-weight:600;margin:2px 0 -4px}
+  .legend{display:flex;flex-direction:column;gap:3px}
+  .legend .row{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:6px 8px;
+    border-radius:8px;cursor:pointer;border:1px solid transparent;user-select:none;transition:background .12s}
+  .legend .row:hover{background:var(--chip)}
+  .legend .row.off{opacity:.4}
+  .legend .row.off .dot{box-shadow:none}
+  .dot{width:12px;height:12px;border-radius:50%;flex:0 0 12px;box-shadow:0 0 9px -1px currentColor}
+  .legend .label{flex:1}
+  .legend .cnt{font-size:11px;color:var(--muted2);font-variant-numeric:tabular-nums}
+
+  .stat{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .stat b{color:var(--text);font-weight:600}
+
+  /* ---------- details panel ---------- */
+  #details{background:var(--panel-solid);border:1px solid var(--line);border-radius:12px;
+    padding:14px;box-shadow:var(--shadow-sm);display:none;animation:pop .18s ease}
+  #details.show{display:block}
+  @keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .det-head{display:flex;align-items:flex-start;gap:9px;margin-bottom:4px}
+  .det-head .dot{margin-top:4px}
+  .det-name{font-size:14.5px;font-weight:650;line-height:1.3;flex:1;word-break:break-word}
+  .det-close{flex:0 0 auto;width:22px;height:22px;border-radius:6px;font-size:14px;padding:0;
+    justify-content:center}
+  .det-meta{font-size:11.5px;color:var(--muted);margin:2px 0 10px}
+  .det-grp{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted2);
+    font-weight:600;margin:10px 0 6px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-size:11.5px;padding:5px 9px;background:var(--chip);border:1px solid var(--line);
+    border-radius:7px;cursor:pointer;transition:background .12s,border-color .12s;max-width:100%;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chip:hover{background:var(--chip-hover);border-color:var(--accent)}
+  .chip .cdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
+
+  .foot{margin-top:auto;font-size:11px;color:var(--muted2);line-height:1.65;padding-top:6px}
+  .foot kbd{background:var(--chip);border:1px solid var(--line);border-bottom-width:2px;
+    border-radius:5px;padding:0 5px;font-size:10px;font-family:inherit}
+
+  /* ---------- graph ---------- */
+  #graph{flex:1;position:relative;background:
+    radial-gradient(120% 120% at 30% 0%,var(--glow-bg) 0%,var(--bg2) 42%,var(--bg) 100%)}
+  svg{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+  svg:active{cursor:grabbing}
+  .node circle{stroke:var(--bg);stroke-width:2px;cursor:pointer;
+    transition:opacity .18s,stroke .18s,stroke-width .18s}
+  .node text{font-size:11px;font-weight:500;fill:var(--text);pointer-events:none;
+    paint-order:stroke;stroke:var(--bg);stroke-width:3.4px;stroke-linejoin:round;
+    transition:opacity .18s}
+  .node.root text{font-size:13px;font-weight:700}
+  .node.root circle,.node.hl circle{filter:url(#glow)}
+  .node.hl circle{stroke:var(--accent);stroke-width:3px}
+  .node.match circle{stroke:var(--accent2);stroke-width:3px}
+  .link{stroke:var(--edge);stroke-width:1.4px;fill:none;opacity:.5;
+    transition:opacity .18s,stroke .18s,stroke-width .18s}
+  .link.hl{stroke:var(--accent);opacity:.92;stroke-width:2.2px}
+  .dim{opacity:.1 !important}
+  .link.dim{opacity:.05 !important}
+  .hidden{display:none !important}
+
+  /* floating controls over the canvas */
+  .overlay{position:absolute;display:flex;gap:8px;z-index:15}
+  .ov-tr{top:16px;right:16px}
+  .ov-br{bottom:16px;right:16px;flex-direction:column}
+  .icon-btn{width:36px;height:36px;padding:0;justify-content:center;background:var(--panel);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:var(--shadow-sm)}
+  .icon-btn svg{width:17px;height:17px;stroke:var(--text);fill:none;stroke-width:1.9;
+    stroke-linecap:round;stroke-linejoin:round}
+  #hamb{display:none}
+
+  /* tooltip */
+  #tip{position:fixed;pointer-events:none;z-index:60;background:var(--panel-solid);
+    border:1px solid var(--line);border-radius:9px;padding:8px 11px;box-shadow:var(--shadow);
+    font-size:12px;max-width:240px;opacity:0;transform:translateY(4px);transition:opacity .12s,transform .12s}
+  #tip.show{opacity:1;transform:none}
+  #tip .t-name{font-weight:650;margin-bottom:3px;display:flex;align-items:center;gap:6px}
+  #tip .t-meta{color:var(--muted);font-size:11px}
+
+  /* right-click detail card */
+  #nodeCard{position:fixed;z-index:70;min-width:212px;max-width:286px;background:var(--panel-solid);
+    border:1px solid var(--line);border-radius:13px;box-shadow:var(--shadow);padding:13px 14px;
+    opacity:0;transform:translateY(6px) scale(.98);transform-origin:top left;pointer-events:none;
+    transition:opacity .14s,transform .14s}
+  #nodeCard.show{opacity:1;transform:none;pointer-events:auto}
+  .card-head{display:flex;align-items:flex-start;gap:9px;margin-bottom:3px}
+  .card-head .dot{margin-top:4px}
+  .card-name{font-size:14.5px;font-weight:650;line-height:1.3;flex:1;word-break:break-word}
+  .card-x{flex:0 0 auto;width:22px;height:22px;border-radius:6px;font-size:13px;padding:0;justify-content:center}
+  .card-meta{font-size:11.5px;color:var(--muted);margin-bottom:9px}
+  .card-stats{display:flex;gap:13px;flex-wrap:wrap;font-size:11px;color:var(--muted);
+    padding:9px 0;margin-bottom:2px;border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft)}
+  .card-stats b{display:block;color:var(--text);font-size:15px;font-weight:680;font-variant-numeric:tabular-nums}
+  .card-focus{width:100%;justify-content:center;margin-top:11px;border-color:var(--accent);color:var(--accent)}
+  .card-focus:hover{background:color-mix(in srgb,var(--accent) 14%,transparent);border-color:var(--accent)}
+
+  /* toast */
+  #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--panel-solid);border:1px solid var(--line);color:var(--text);
+    padding:10px 16px;border-radius:10px;box-shadow:var(--shadow);font-size:13px;z-index:80;
+    opacity:0;transition:opacity .2s,transform .2s;pointer-events:none}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  #scrim{position:absolute;inset:0;background:rgba(0,0,0,.45);z-index:18;display:none}
+
+  @media (max-width:760px){
+    #side{position:absolute;inset:0 auto 0 0;transform:translateX(-105%);transition:transform .25s ease;
+      box-shadow:var(--shadow);width:86%;max-width:320px}
+    #side.open{transform:none}
+    #scrim.show{display:block}
+    #hamb{display:flex}
+    .ov-tr{top:16px;left:16px;right:auto}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="brand">
+      <h1>🕸 Граф знань — SEO</h1>
+    </div>
+    <div class="sub">Побудовано зі звʼязків <code>[[wiki-links]]</code> вашого Obsidian-сховища.</div>
+
+    <div class="field" id="searchField">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="search" type="text" placeholder="Пошук вузла…  (натисніть /)" autocomplete="off" spellcheck="false">
+      <button class="clear-x" id="clearSearch" title="Очистити">✕</button>
+    </div>
+    <div class="search-hint" id="searchHint"></div>
+
+    <div class="ctrls">
+      <button class="primary" id="fit">⤢ Вмістити</button>
+      <button class="primary" id="freeze">⏸ Зупинити</button>
+    </div>
+
+    <div>
+      <div class="sec-title">Кластери · клік щоб приховати</div>
+      <div class="legend" id="legend"></div>
+    </div>
+
+    <div class="stat" id="stat"></div>
+
+    <section id="details" aria-live="polite"></section>
+
+    <div class="foot">
+      Перетягуйте вузли · колесо — масштаб.<br>
+      <b>Клік</b> — фокус · <b>права кнопка</b> — деталі вузла.<br>
+      Розмір вузла = вхідні посилання.<br>
+      <kbd>/</kbd> пошук · <kbd>F</kbd> пауза · <kbd>Esc</kbd> скинути
+    </div>
+  </aside>
+
+  <div id="graph">
+    <svg></svg>
+    <div class="overlay ov-tr">
+      <button class="icon-btn" id="hamb" title="Меню">
+        <svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <button class="icon-btn" id="theme" title="Світла / темна тема">
+        <svg viewBox="0 0 24 24" id="themeIcon"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/></svg>
+      </button>
+      <button class="icon-btn" id="png" title="Зберегти як PNG">
+        <svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+      </button>
+    </div>
+    <div class="overlay ov-br">
+      <button class="icon-btn" id="zin" title="Збільшити"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button class="icon-btn" id="zout" title="Зменшити"><svg viewBox="0 0 24 24"><path d="M5 12h14"/></svg></button>
+      <button class="icon-btn" id="reset" title="Скинути вид"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>
+    </div>
+    <div id="scrim"></div>
+  </div>
+</div>
+<div id="tip"></div>
+<div id="nodeCard"></div>
+<div id="toast"></div>
+
+<script>
+"use strict";
+/* ============================ data (Obsidian wiki-links) ============================ */
+const links = [
+ ["301 vs 302","SEO specialist"],["Canonical та alternate","SEO specialist"],
+ ["Cабміти","Лінкбілдинг"],["EMD","SEO specialist"],["Insertlink","Лінкбілдинг"],
+ ["Linkjuice","Типи посилань"],["Outreach","Лінкбілдинг"],["Pbn","Лінкбілдинг"],
+ ["Robots.txt","SEO specialist"],["SEO тексти","SEO specialist"],
+ ["Schema json","SEO specialist"],["Sitemap.xml","SEO specialist"],
+ ["Аукціонні домени","SEO specialist"],["Бекордери","SEO specialist"],
+ ["Доменні зони","SEO specialist"],["Дорвеї(d)","Лінкбілдинг"],
+ ["Дроп домени","SEO specialist"],["Крауд","Лінкбілдинг"],["Лом(d)","Лінкбілдинг"],
+ ["Лінкбілдинг","Типи посилань"],["Посилання вага","Типи посилань"],
+ ["Посилання з морди(d)","Лінкбілдинг"],["Прогони(d)","Лінкбілдинг"],
+ ["Піддомени","SEO specialist"],["Семантика","SEO specialist"],
+ ["Семантичне ядро","Семантика"],["Типи посилань","SEO specialist"]
+];
+const ROOT = "SEO specialist";
+
+/* themes assigned per top-level branch (direct child of root); leaves inherit their branch */
+const THEMES = {
+  core:      {label:"Центр — SEO specialist", v:"--core"},
+  technical: {label:"Технічне SEO",            v:"--technical"},
+  content:   {label:"Контент і семантика",     v:"--content"},
+  domains:   {label:"Домени",                  v:"--domains"},
+  links:     {label:"Лінкбілдинг і посилання", v:"--links"}
+};
+const BRANCH_THEME = {
+  [ROOT]:"core",
+  "301 vs 302":"technical","Canonical та alternate":"technical","Robots.txt":"technical",
+  "Schema json":"technical","Sitemap.xml":"technical",
+  "SEO тексти":"content","Семантика":"content",
+  "EMD":"domains","Аукціонні домени":"domains","Бекордери":"domains",
+  "Доменні зони":"domains","Дроп домени":"domains","Піддомени":"domains",
+  "Типи посилань":"links"
+};
+
+/* ---- derive graph model ---- */
+const names = new Set();
+links.forEach(([s,t])=>{names.add(s);names.add(t)});
+const inDeg = {}, outDeg = {}, parentOf = {}, childrenOf = {};
+names.forEach(n=>{inDeg[n]=0;outDeg[n]=0;childrenOf[n]=[]});
+links.forEach(([s,t])=>{inDeg[t]++;outDeg[s]++;if(!(s in parentOf))parentOf[s]=t;childrenOf[t].push(s)});
+
+function branchOf(n){
+  if(n===ROOT) return ROOT;
+  let cur=n,g=0;
+  while(parentOf[cur] && parentOf[cur]!==ROOT && g++<60) cur=parentOf[cur];
+  return cur;
+}
+function themeOf(n){ return BRANCH_THEME[branchOf(n)] || "links"; }
+function typeOf(n){ return n===ROOT ? "root" : (inDeg[n]>0 ? "hub" : "leaf"); }
+
+const nodes = [...names].map(id=>({id,type:typeOf(id),theme:themeOf(id),inDeg:inDeg[id],outDeg:outDeg[id]}));
+const linkObjs = links.map(([s,t])=>({source:s,target:t}));
+
+const nbr = {}; names.forEach(n=>nbr[n]=new Set());
+links.forEach(([s,t])=>{nbr[s].add(t);nbr[t].add(s)});
+const sid = e => (e && e.id!==undefined) ? e.id : e;   // node-or-id → id
+
+/* ============================ helpers ============================ */
+const $  = s => document.querySelector(s);
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const themeColor = t => css(THEMES[t].v);
+const root = document.documentElement;
+
+/* ============================ render ============================ */
+const svg = d3.select("#graph > svg");
+let W = svg.node().clientWidth, H = svg.node().clientHeight;
+
+const defs = svg.append("defs");
+const fg = defs.append("filter").attr("id","glow")
+  .attr("x","-60%").attr("y","-60%").attr("width","220%").attr("height","220%");
+fg.append("feGaussianBlur").attr("stdDeviation","3").attr("result","b");
+const fm = fg.append("feMerge"); fm.append("feMergeNode").attr("in","b"); fm.append("feMergeNode").attr("in","SourceGraphic");
+
+const g = svg.append("g");
+const zoom = d3.zoom().scaleExtent([0.2,4]).on("zoom",e=>g.attr("transform",e.transform));
+svg.call(zoom).on("dblclick.zoom",null);
+
+function radius(d){ return d.type==="root" ? 24 : 7 + Math.sqrt(d.inDeg)*5.5; }
+
+const sim = d3.forceSimulation(nodes)
+  .force("link", d3.forceLink(linkObjs).id(d=>d.id)
+      .distance(d=> sid(d.target)===ROOT ? 165 : 95).strength(.55))
+  .force("charge", d3.forceManyBody().strength(-380))
+  .force("center", d3.forceCenter(W/2,H/2))
+  .force("x", d3.forceX(W/2).strength(.04))
+  .force("y", d3.forceY(H/2).strength(.05))
+  .force("collide", d3.forceCollide(d=>radius(d)+16));
+
+const linkSel = g.append("g").attr("class","links").selectAll("path")
+  .data(linkObjs).join("path").attr("class","link");
+
+const nodeSel = g.append("g").selectAll("g").data(nodes).join("g")
+  .attr("class", d=>"node "+d.type)
+  .call(d3.drag().on("start",dragStart).on("drag",dragMove).on("end",dragEnd));
+
+nodeSel.append("circle").attr("r",radius).attr("fill",d=>themeColor(d.theme));
+nodeSel.append("text").attr("x",d=>radius(d)+5).attr("dy",4).text(d=>d.id);
+
+sim.on("tick",()=>{
+  linkSel.attr("d",d=>{
+    const x1=d.source.x,y1=d.source.y,x2=d.target.x,y2=d.target.y;
+    const cx=(x1+x2)/2+(y2-y1)*0.12, cy=(y1+y2)/2-(x2-x1)*0.12;
+    return `M${x1},${y1}Q${cx},${cy} ${x2},${y2}`;
+  });
+  nodeSel.attr("transform",d=>`translate(${d.x},${d.y})`);
+});
+
+/* settle then frame the graph */
+sim.alpha(1).restart();
+let framed=false;
+sim.on("tick.fit",()=>{ if(!framed && sim.alpha()<0.08){ framed=true; sim.on("tick.fit",null); zoomToFit(0); }});
+
+/* ============================ state + refresh ============================ */
+const state = { active:new Set(Object.keys(THEMES)), query:"", focus:null, hover:null, frozen:false };
+
+function neighborsKeep(id){ return id ? new Set([id, ...nbr[id]]) : null; }
+
+function refresh(){
+  const hi = state.hover || state.focus;
+  const keep = neighborsKeep(hi);
+  const q = state.query.trim().toLowerCase();
+  const dimOf = {};
+  nodes.forEach(d=>{
+    const hidden = !state.active.has(d.theme);
+    const matches = !q || d.id.toLowerCase().includes(q);
+    const inFocus = !keep || keep.has(d.id);
+    dimOf[d.id] = !hidden && !(matches && inFocus);
+  });
+  nodeSel
+    .classed("hidden", d=>!state.active.has(d.theme))
+    .classed("dim",    d=> dimOf[d.id])
+    .classed("hl",     d=> hi && d.id===hi)
+    .classed("match",  d=> q && d.id.toLowerCase().includes(q) && state.active.has(d.theme));
+  linkSel
+    .classed("hidden", l=>!(state.active.has(l.source.theme) && state.active.has(l.target.theme)))
+    .classed("hl",     l=> hi && (l.source.id===hi || l.target.id===hi))
+    .classed("dim",    l=>{
+      const vis = state.active.has(l.source.theme) && state.active.has(l.target.theme);
+      return vis && (dimOf[l.source.id] || dimOf[l.target.id]);
+    });
+  updateStat(q);
+}
+
+function updateStat(q){
+  const vis = nodes.filter(d=>state.active.has(d.theme)).length;
+  let extra = "";
+  if(vis!==nodes.length) extra = ` · <b>${vis}</b> показано`;
+  let m = "";
+  if(q){ const c = nodes.filter(d=>state.active.has(d.theme)&&d.id.toLowerCase().includes(q)).length;
+    m = c ? `<b>${c}</b> збіг(ів) · Enter — перейти` : "немає збігів"; }
+  $("#searchHint").innerHTML = m;
+  $("#stat").innerHTML = `<b>${nodes.length}</b> вузлів · <b>${linkObjs.length}</b> звʼязків${extra}`;
+}
+
+/* ============================ interactions ============================ */
+const tip = $("#tip");
+function showTip(d,ev){
+  if($("#nodeCard").classList.contains("show")) return;
+  tip.innerHTML = `<div class="t-name"><span class="dot" style="width:9px;height:9px;background:${themeColor(d.theme)}"></span>${esc(d.id)}</div>`+
+    `<div class="t-meta">${THEMES[d.theme].label} · ${typeLabel(d)} · ${d.inDeg} вх. / ${d.outDeg} вих.</div>`;
+  moveTip(ev); tip.classList.add("show");
+}
+function moveTip(ev){
+  const pad=14, w=tip.offsetWidth, h=tip.offsetHeight;
+  let x=ev.clientX+pad, y=ev.clientY+pad;
+  if(x+w>innerWidth-8) x=ev.clientX-w-pad;
+  if(y+h>innerHeight-8) y=ev.clientY-h-pad;
+  tip.style.left=x+"px"; tip.style.top=y+"px";
+}
+const hideTip = ()=>tip.classList.remove("show");
+
+nodeSel
+  .on("mouseenter",(e,d)=>{ state.hover=d.id; refresh(); showTip(d,e); })
+  .on("mousemove",(e)=>moveTip(e))
+  .on("mouseleave",()=>{ state.hover=null; refresh(); hideTip(); })
+  .on("click",(e,d)=>{ e.stopPropagation(); hideCard(); focusNode(state.focus===d.id?null:d.id); })
+  .on("contextmenu",(e,d)=>{ e.preventDefault(); e.stopPropagation(); hideTip(); showCard(d,e); });
+
+svg.on("click",()=>focusNode(null));
+svg.on("contextmenu",(e)=>{ e.preventDefault(); hideCard(); });
+
+function focusNode(id){
+  state.focus = id;
+  refresh();
+  if(id){ renderDetails(nodes.find(n=>n.id===id)); }
+  else { $("#details").classList.remove("show"); }
+}
+
+/* shared connection-chip helpers (used by sidebar details + right-click card) */
+function chipHTML(id){
+  const t=themeOf(id);
+  return `<span class="chip" data-id="${esc(id)}" title="${esc(id)}"><span class="cdot" style="background:${themeColor(t)}"></span>${esc(id)}</span>`;
+}
+function connectionsHTML(d){
+  const parent=parentOf[d.id], kids=childrenOf[d.id]||[];
+  let h="";
+  if(parent) h+=`<div class="det-grp">Батьківська тема</div><div class="chips">${chipHTML(parent)}</div>`;
+  if(kids.length) h+=`<div class="det-grp">Дочірні (${kids.length})</div><div class="chips">${kids.map(chipHTML).join("")}</div>`;
+  if(!parent && !kids.length) h+=`<div class="det-meta">Немає звʼязків.</div>`;
+  return h;
+}
+function bindChips(box, after){
+  box.querySelectorAll(".chip").forEach(c=>c.onclick=ev=>{
+    ev.stopPropagation();
+    const id=c.getAttribute("data-id"), n=nodes.find(x=>x.id===id);
+    focusNode(id); if(n) centerOn(n); if(after) after(id);
+  });
+}
+
+function renderDetails(d){
+  const box=$("#details");
+  box.innerHTML = `<div class="det-head">
+      <span class="dot" style="background:${themeColor(d.theme)}"></span>
+      <div class="det-name">${esc(d.id)}</div>
+      <button class="det-close" id="detClose" title="Закрити">✕</button>
+    </div>
+    <div class="det-meta">${THEMES[d.theme].label} · ${typeLabel(d)} · <b>${d.inDeg}</b> вхідних, <b>${d.outDeg}</b> вихідних</div>`
+    + connectionsHTML(d);
+  box.classList.add("show");
+  bindChips(box);
+  $("#detClose").onclick=()=>focusNode(null);
+}
+
+/* ---- right-click → floating detail card ---- */
+const card=$("#nodeCard");
+let cardShownAt=0;
+function hideCard(){ card.classList.remove("show"); }
+function showCard(d,ev){
+  card.innerHTML = `<div class="card-head">
+      <span class="dot" style="background:${themeColor(d.theme)}"></span>
+      <div class="card-name">${esc(d.id)}</div>
+      <button class="card-x" id="cardClose" title="Закрити">✕</button>
+    </div>
+    <div class="card-meta">${THEMES[d.theme].label} · ${typeLabel(d)}</div>
+    <div class="card-stats">
+      <span><b>${d.inDeg}</b>вхідних</span>
+      <span><b>${d.outDeg}</b>вихідних</span>
+      <span><b>${nbr[d.id].size}</b>сусідів</span>
+    </div>`
+    + connectionsHTML(d)
+    + `<button class="card-focus" id="cardFocus">🎯 Фокус на вузлі</button>`;
+  card.classList.add("show"); cardShownAt=performance.now();
+  positionCard(ev);
+  bindChips(card, ()=>hideCard());
+  $("#cardClose").onclick=e=>{ e.stopPropagation(); hideCard(); };
+  $("#cardFocus").onclick=e=>{ e.stopPropagation(); focusNode(d.id); centerOn(d); hideCard(); };
+}
+function positionCard(ev){
+  const pad=14, w=card.offsetWidth, h=card.offsetHeight;
+  let x=ev.clientX+pad, y=ev.clientY+pad;
+  if(x+w>innerWidth-8)  x=ev.clientX-w-pad;
+  if(y+h>innerHeight-8) y=innerHeight-h-8;
+  card.style.left=Math.max(8,x)+"px"; card.style.top=Math.max(8,y)+"px";
+}
+card.addEventListener("click",e=>e.stopPropagation());
+card.addEventListener("contextmenu",e=>e.preventDefault());
+document.addEventListener("click",()=>{ if(performance.now()-cardShownAt>250) hideCard(); });
+
+function typeLabel(d){ return d.type==="root"?"центр":(d.type==="hub"?"категорія":"нотатка"); }
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+/* drag */
+function dragStart(e,d){ if(!e.active)sim.alphaTarget(.3).restart(); d.fx=d.x; d.fy=d.y; }
+function dragMove(e,d){ d.fx=e.x; d.fy=e.y; }
+function dragEnd(e,d){ if(!e.active)sim.alphaTarget(0); d.fx=null; d.fy=null; }
+
+/* ============================ zoom helpers ============================ */
+function zoomToFit(dur=600){
+  if(!nodes.length) return;
+  const pad=70;
+  const xs=nodes.map(n=>n.x), ys=nodes.map(n=>n.y);
+  const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+  const w=Math.max(maxX-minX,1), h=Math.max(maxY-minY,1);
+  const scale=Math.min(2.2, Math.max(0.2, 0.92*Math.min(W/(w+pad*2), H/(h+pad*2))));
+  const tx=W/2-scale*(minX+maxX)/2, ty=H/2-scale*(minY+maxY)/2;
+  svg.transition().duration(dur).call(zoom.transform, d3.zoomIdentity.translate(tx,ty).scale(scale));
+}
+function centerOn(d,scale=1.5,dur=600){
+  svg.transition().duration(dur).call(zoom.transform,
+    d3.zoomIdentity.translate(W/2,H/2).scale(scale).translate(-d.x,-d.y));
+}
+
+/* ============================ legend ============================ */
+function buildLegend(){
+  const wrap=$("#legend"); wrap.innerHTML="";
+  Object.keys(THEMES).forEach(t=>{
+    const cnt=nodes.filter(n=>n.theme===t).length;
+    const row=document.createElement("div");
+    row.className="row"+(state.active.has(t)?"":" off");
+    row.innerHTML=`<span class="dot" style="color:${themeColor(t)};background:${themeColor(t)}"></span>`+
+      `<span class="label">${THEMES[t].label}</span><span class="cnt">${cnt}</span>`;
+    row.onclick=()=>{
+      if(state.active.has(t)) state.active.delete(t); else state.active.add(t);
+      if(state.active.size===0) state.active.add(t);   // never empty
+      row.classList.toggle("off",!state.active.has(t));
+      if(state.focus && !state.active.has(themeOf(state.focus))) focusNode(null);
+      refresh();
+    };
+    wrap.appendChild(row);
+  });
+}
+
+/* ============================ controls ============================ */
+$("#search").addEventListener("input",e=>{
+  state.query=e.target.value;
+  $("#searchField").classList.toggle("has-val",!!e.target.value);
+  refresh();
+});
+$("#search").addEventListener("keydown",e=>{
+  if(e.key==="Enter"){
+    const q=state.query.trim().toLowerCase();
+    const hit=nodes.find(n=>state.active.has(n.theme)&&n.id.toLowerCase().includes(q));
+    if(hit){ focusNode(hit.id); centerOn(hit); }
+  } else if(e.key==="Escape"){ clearSearch(); e.target.blur(); }
+});
+function clearSearch(){ state.query=""; $("#search").value=""; $("#searchField").classList.remove("has-val"); refresh(); }
+$("#clearSearch").onclick=()=>{ clearSearch(); $("#search").focus(); };
+
+$("#fit").onclick=()=>zoomToFit();
+$("#reset").onclick=()=>{ focusNode(null); clearSearch(); sim.alpha(.6).restart(); setTimeout(()=>zoomToFit(),300); };
+$("#zin").onclick=()=>svg.transition().duration(220).call(zoom.scaleBy,1.35);
+$("#zout").onclick=()=>svg.transition().duration(220).call(zoom.scaleBy,1/1.35);
+
+$("#freeze").onclick=()=>setFrozen(!state.frozen);
+function setFrozen(f){
+  state.frozen=f;
+  if(f){ sim.stop(); $("#freeze").textContent="▶ Запустити"; }
+  else { sim.alpha(.3).restart(); $("#freeze").textContent="⏸ Зупинити"; }
+}
+
+/* theme toggle (persisted) */
+function applyTheme(name){
+  root.setAttribute("data-theme",name);
+  $("#themeIcon").innerHTML = name==="dark"
+    ? '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8Z"/>'
+    : '<circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  nodeSel.select("circle").attr("fill",d=>themeColor(d.theme));
+  buildLegend();
+  if(state.focus) renderDetails(nodes.find(n=>n.id===state.focus));
+  try{ localStorage.setItem("kg-theme",name); }catch(_){}
+}
+$("#theme").onclick=()=>applyTheme(root.getAttribute("data-theme")==="dark"?"light":"dark");
+(function initTheme(){
+  let saved=null; try{ saved=localStorage.getItem("kg-theme"); }catch(_){}
+  if(!saved) saved = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  applyTheme(saved);
+})();
+
+/* mobile drawer */
+const side=$("#side"), scrim=$("#scrim");
+$("#hamb").onclick=()=>{ side.classList.add("open"); scrim.classList.add("show"); };
+scrim.onclick=()=>{ side.classList.remove("open"); scrim.classList.remove("show"); };
+
+/* keyboard */
+addEventListener("keydown",e=>{
+  const typing = /^(input|textarea)$/i.test(document.activeElement.tagName);
+  if(e.key==="/" && !typing){ e.preventDefault(); $("#search").focus(); }
+  else if(e.key==="Escape"){ focusNode(null); clearSearch(); hideCard(); }
+  else if((e.key==="f"||e.key==="F"||e.key==="а"||e.key==="А") && !typing){ setFrozen(!state.frozen); }
+});
+
+/* resize */
+addEventListener("resize",()=>{
+  W=svg.node().clientWidth; H=svg.node().clientHeight;
+  sim.force("center",d3.forceCenter(W/2,H/2)).force("x",d3.forceX(W/2).strength(.04))
+     .force("y",d3.forceY(H/2).strength(.05)).alpha(.2).restart();
+});
+
+/* ============================ PNG export ============================ */
+function toast(msg){
+  const t=$("#toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),2200);
+}
+$("#png").onclick=exportPNG;
+function exportPNG(){
+  try{
+    const bg=css("--bg"), text=css("--text"), edge=css("--edge"), accent=css("--accent");
+    const clone=svg.node().cloneNode(true);
+    clone.setAttribute("width",W); clone.setAttribute("height",H);
+    clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
+    const style=document.createElementNS("http://www.w3.org/2000/svg","style");
+    style.textContent=`
+      text{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;font-size:11px;font-weight:500;
+        fill:${text};paint-order:stroke;stroke:${bg};stroke-width:3.4px;stroke-linejoin:round}
+      .node.root text{font-size:13px;font-weight:700}
+      .link{stroke:${edge};stroke-width:1.4px;fill:none;opacity:.5}
+      .link.hl{stroke:${accent};opacity:.92;stroke-width:2.2px}
+      .node.hl circle{stroke:${accent};stroke-width:3px}
+      .dim{opacity:.1}.link.dim{opacity:.05}.hidden{display:none}`;
+    clone.insertBefore(style,clone.firstChild);
+    const rect=document.createElementNS("http://www.w3.org/2000/svg","rect");
+    rect.setAttribute("width",W); rect.setAttribute("height",H); rect.setAttribute("fill",bg);
+    clone.insertBefore(rect,clone.firstChild);
+
+    const xml=new XMLSerializer().serializeToString(clone);
+    const url="data:image/svg+xml;base64,"+btoa(unescape(encodeURIComponent(xml)));
+    const img=new Image();
+    img.onload=()=>{
+      const s=Math.min(2,devicePixelRatio||1);
+      const cv=document.createElement("canvas"); cv.width=W*s; cv.height=H*s;
+      const ctx=cv.getContext("2d"); ctx.scale(s,s); ctx.drawImage(img,0,0);
+      cv.toBlob(b=>{
+        const a=document.createElement("a");
+        a.href=URL.createObjectURL(b); a.download="seo-knowledge-graph.png"; a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href),1000); toast("PNG збережено ✓");
+      },"image/png");
+    };
+    img.onerror=()=>toast("Не вдалося експортувати");
+    img.src=url;
+  }catch(err){ toast("Не вдалося експортувати"); }
+}
+
+/* ============================ go ============================ */
+buildLegend();
+refresh();
+</script>
+</body>
+</html>
