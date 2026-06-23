@@ -8,6 +8,8 @@
 <title>Граф знань — SEO</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='12' fill='%23ff6b6b'/%3E%3Ccircle cx='20' cy='22' r='7' fill='%2338bdf8'/%3E%3Ccircle cx='82' cy='30' r='7' fill='%23a78bfa'/%3E%3Ccircle cx='25' cy='80' r='7' fill='%2334d399'/%3E%3Ccircle cx='80' cy='78' r='7' fill='%23fbbf24'/%3E%3Cg stroke='%23556' stroke-width='3'%3E%3Cline x1='50' y1='50' x2='20' y2='22'/%3E%3Cline x1='50' y1='50' x2='82' y2='30'/%3E%3Cline x1='50' y1='50' x2='25' y2='80'/%3E%3Cline x1='50' y1='50' x2='80' y2='78'/%3E%3C/g%3E%3C/svg%3E">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="notes.js"></script>
 <style>
   :root{
     --bg:#0c0e14; --bg2:#11141d; --glow-bg:#171b27;
@@ -134,7 +136,7 @@
     stroke-linecap:round;stroke-linejoin:round}
   #hamb{display:none}
   @media (min-width:761px){
-    #graph.panel-open .ov-tr,#graph.panel-open .ov-br{right:356px}
+    #graph.panel-open .ov-tr,#graph.panel-open .ov-br{right:396px}
   }
 
   /* tooltip */
@@ -146,7 +148,7 @@
   #tip .t-meta{color:var(--muted);font-size:11px}
 
   /* right-side inspector panel */
-  #inspector{position:absolute;top:0;right:0;height:100%;width:340px;z-index:30;
+  #inspector{position:absolute;top:0;right:0;height:100%;width:380px;z-index:30;
     background:var(--panel);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
     border-left:1px solid var(--line);box-shadow:-14px 0 44px rgba(0,0,0,.3);
     padding:20px 18px;overflow-y:auto;transform:translateX(100%);
@@ -159,6 +161,33 @@
   .card-stats b{display:block;color:var(--text);font-size:16px;font-weight:680;font-variant-numeric:tabular-nums}
   .card-focus{width:100%;justify-content:center;margin-top:14px;border-color:var(--accent);color:var(--accent)}
   .card-focus:hover{background:color-mix(in srgb,var(--accent) 14%,transparent);border-color:var(--accent)}
+
+  /* rendered note (markdown) inside the inspector */
+  .note-body{font-size:13px;line-height:1.62;color:var(--text);margin-top:6px;overflow-wrap:anywhere}
+  .note-body h1,.note-body h2,.note-body h3,.note-body h4{line-height:1.3;margin:15px 0 7px;font-weight:650}
+  .note-body h1{font-size:16px}
+  .note-body h2{font-size:14.5px}
+  .note-body h3{font-size:13px;color:var(--muted)}
+  .note-body h4{font-size:12.5px;color:var(--muted)}
+  .note-body p{margin:8px 0}
+  .note-body ul,.note-body ol{margin:8px 0;padding-left:19px}
+  .note-body li{margin:3px 0}
+  .note-body strong{font-weight:680}
+  .note-body a{color:var(--accent2);text-decoration:none}
+  .note-body a:hover{text-decoration:underline}
+  .note-body a.wikilink{color:var(--accent);font-weight:600;cursor:pointer;
+    border-bottom:1px dashed color-mix(in srgb,var(--accent) 55%,transparent)}
+  .note-body code{background:var(--chip);padding:1px 5px;border-radius:5px;font-size:12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .note-body pre{background:var(--chip);padding:11px 12px;border-radius:9px;overflow-x:auto;
+    border:1px solid var(--line-soft);margin:9px 0}
+  .note-body pre code{background:none;padding:0;font-size:11.5px;line-height:1.5}
+  .note-body blockquote{margin:9px 0;padding:3px 0 3px 12px;border-left:3px solid var(--line);color:var(--muted)}
+  .note-body table{border-collapse:collapse;width:100%;font-size:12px;margin:9px 0;display:block;overflow-x:auto}
+  .note-body th,.note-body td{border:1px solid var(--line);padding:5px 8px;text-align:left}
+  .note-body th{background:var(--chip)}
+  .note-body hr{border:none;border-top:1px solid var(--line);margin:12px 0}
+  .note-body img{max-width:100%;border-radius:8px}
 
   /* toast */
   #toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);
@@ -176,7 +205,7 @@
     #scrim.show{display:block}
     #hamb{display:flex}
     .ov-tr{top:16px;left:16px;right:auto}
-    #inspector{width:88%;max-width:340px;box-shadow:var(--shadow)}
+    #inspector{width:92%;max-width:380px;box-shadow:var(--shadow)}
   }
 </style>
 </head>
@@ -449,7 +478,7 @@ function bindChips(box){
 
 /* ---- right-side inspector panel ---- */
 const inspector=$("#inspector");
-const INSPECTOR_W=340;
+const INSPECTOR_W=380;
 function openInspector(){
   inspector.classList.add("show"); $("#graph").classList.add("panel-open");
   if(innerWidth<=760) $("#scrim").classList.add("show");
@@ -458,7 +487,17 @@ function closeInspector(){
   inspector.classList.remove("show"); $("#graph").classList.remove("panel-open");
   if(!$("#side").classList.contains("open")) $("#scrim").classList.remove("show");
 }
+function renderNote(md){
+  if(!window.marked) return `<div style="white-space:pre-wrap">${esc(md)}</div>`;
+  const withLinks = md.replace(/\[\[([^\]]+)\]\]/g,(m,inner)=>{
+    const parts=inner.split("|"), target=parts[0].trim(), label=(parts[1]||parts[0]).trim();
+    return names.has(target) ? `<a class="wikilink" data-id="${target.replace(/"/g,"&quot;")}">${esc(label)}</a>` : esc(label);
+  });
+  try{ return marked.parse(withLinks); }catch(_){ return `<div style="white-space:pre-wrap">${esc(md)}</div>`; }
+}
+
 function renderDetails(d){
+  const note = (window.NOTES && window.NOTES[d.id]) || "";
   inspector.innerHTML = `<div class="det-head">
       <span class="dot" style="background:${themeColor(d.theme)}"></span>
       <div class="det-name">${esc(d.id)}</div>
@@ -471,8 +510,12 @@ function renderDetails(d){
       <span><b>${nbr[d.id].size}</b>сусідів</span>
     </div>`
     + connectionsHTML(d)
-    + `<button class="card-focus" id="inspCenter">🎯 Центрувати на вузлі</button>`;
+    + `<button class="card-focus" id="inspCenter">🎯 Центрувати на вузлі</button>`
+    + (note ? `<div class="det-grp">📖 Пояснення</div><div class="note-body">${renderNote(note)}</div>`
+            : `<div class="det-grp">Пояснення</div><div class="det-meta">Текст для цього вузла відсутній.</div>`);
   bindChips(inspector);
+  inspector.querySelectorAll(".wikilink").forEach(a=>a.onclick=ev=>{ ev.preventDefault(); ev.stopPropagation(); focusNode(a.getAttribute("data-id")); });
+  inspector.scrollTop = 0;
   $("#detClose").onclick=()=>focusNode(null);
   $("#inspCenter").onclick=()=>{ const n=nodes.find(x=>x.id===state.focus); if(n) centerOn(n); };
 }
